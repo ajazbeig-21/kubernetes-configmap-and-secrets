@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    volumeMounts:
+      - name: db-connection
+        mountPath: /opt
+    ports:
+    - containerPort: 80
+    # Problem with below is that if configmap is deleted or modified, pod won't reflect those changes
+    # So we will use env variables to reference configmap key value pairs
+    # env:
+    # - name: DB_PORT
+    #   valueFrom:
+    #     configMapKeyRef:
+    #       name: test-config-map
+    #       key: db-port
+  volumes:
+    - name: db-connection
+      configMap:
+        name: test-config-map
