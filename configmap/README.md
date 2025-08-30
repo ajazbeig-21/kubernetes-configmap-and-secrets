@@ -128,17 +128,17 @@ kubectl apply -f pod.yaml
 
 # Kubernetes ConfigMap Example
 
-This example demonstrates how to use Kubernetes ConfigMaps to inject non-sensitive configuration data into your pods using both **environment variables** and **volumes**.
+This guide demonstrates how to use Kubernetes ConfigMaps to inject non-sensitive configuration data into your pods using both **environment variables** and **volumes**.
 
 ---
 
 ## What is a Kubernetes ConfigMap?
 
-A **Kubernetes ConfigMap** is an object that lets you store and manage non-confidential configuration data as key-value pairs. ConfigMaps help you decouple configuration from container images, making your applications more portable and easier to manage.
+A **ConfigMap** is a Kubernetes object used to store non-confidential configuration data as key-value pairs. ConfigMaps help you decouple configuration from container images, making your applications more portable and easier to manage.
 
-**Key Features:**
-- ConfigMaps are designed for non-sensitive, environment-specific configuration.
-- ConfigMaps can be mounted as files or exposed as environment variables.
+**Key Points:**
+- ConfigMaps are for non-sensitive, environment-specific configuration.
+- They can be consumed as environment variables or mounted as files inside pods.
 - ConfigMaps allow you to update configuration without rebuilding container images.
 
 ---
@@ -150,19 +150,18 @@ A **Kubernetes ConfigMap** is an object that lets you store and manage non-confi
 
 ---
 
-## How to Create and Use a ConfigMap
+## How to Run This Example
 
 ### 1. Create the ConfigMap
 
-The `test-config-map.yaml` file contains:
-
+**File:** `test-config-map.yaml`
 ```yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: test-config-map
 data:
-  db-port: "3306"
+  db-port: "9999"
 ```
 
 Apply the ConfigMap:
@@ -172,37 +171,35 @@ kubectl apply -f test-config-map.yaml
 
 ---
 
-### 2. Use the ConfigMap in a Pod
+### 2. Create the Pod
 
-The `simple-nginx-pod.yaml` file demonstrates two ways to use the ConfigMap:
-
-#### a. As an Environment Variable
-
+**File:** `simple-nginx-pod.yaml`
 ```yaml
-env:
-- name: DB_PORT
-  valueFrom:
-    configMapKeyRef:
-      name: test-config-map
-      key: db-port
-```
-- This sets the `DB_PORT` environment variable in the container to the value from the ConfigMap.
-
-#### b. As a Mounted Volume
-
-```yaml
-volumes:
-  - name: db-connection
-    configMap:
-      name: test-config-map
-containers:
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  containers:
   - name: nginx
-    ...
+    image: nginx
     volumeMounts:
       - name: db-connection
         mountPath: /opt
+    ports:
+    - containerPort: 80
+    # Example for env variable usage (uncomment to use):
+    # env:
+    # - name: DB_PORT
+    #   valueFrom:
+    #     configMapKeyRef:
+    #       name: test-config-map
+    #       key: db-port
+  volumes:
+    - name: db-connection
+      configMap:
+        name: test-config-map
 ```
-- This mounts the ConfigMap as files under `/opt` in the container (e.g., `/opt/db-port`).
 
 Apply the Pod:
 ```sh
@@ -211,35 +208,27 @@ kubectl apply -f simple-nginx-pod.yaml
 
 ---
 
-## Complete Steps to Run
+### 3. Verify the Pod and ConfigMap
 
-1. **Apply the ConfigMap:**
-   ```sh
-   kubectl apply -f test-config-map.yaml
-   ```
+- **Check Pod Status:**
+  ```sh
+  kubectl get pods
+  kubectl describe pod nginx
+  ```
 
-2. **Apply the Pod:**
-   ```sh
-   kubectl apply -f simple-nginx-pod.yaml
-   ```
+- **Check the Mounted File:**
+  ```sh
+  kubectl exec -it nginx -- ls /opt
+  kubectl exec -it nginx -- cat /opt/db-port
+  ```
+  Output should show: `9999`
 
-3. **Verify the Pod is Running:**
-   ```sh
-   kubectl get pods
-   kubectl describe pod nginx
-   ```
-
-4. **Check the Environment Variable:**
-   ```sh
-   kubectl exec -it nginx -- printenv | grep DB_PORT
-   ```
-   Output should show: `DB_PORT=3306`
-
-5. **Check the Mounted File:**
-   ```sh
-   kubectl exec -it nginx -- cat /opt/db-port
-   ```
-   Output should show: `3306`
+- **(Optional) Check Environment Variable:**
+  If you uncomment the `env` section in the pod YAML, you can verify:
+  ```sh
+  kubectl exec -it nginx -- printenv | grep DB_PORT
+  ```
+  Output should show: `DB_PORT=9999`
 
 ---
 
