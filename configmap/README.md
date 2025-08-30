@@ -1,90 +1,125 @@
-# Kubernetes ConfigMap Example
+# Kubernetes Secret Example
 
-This repository demonstrates how to use Kubernetes ConfigMaps to inject configuration into your pods using both **environment variables** and **volumes**.
+This example demonstrates how to use Kubernetes Secrets to securely inject sensitive data (like API keys or passwords) into your pods using both **environment variables** and **volumes**.
 
-## Folder Structure
+---
 
+## What is a Kubernetes Secret?
+
+A **Kubernetes Secret** is an object that lets you store and manage sensitive information, such as passwords, OAuth tokens, and SSH keys. Storing confidential information in a Secret is safer and more flexible than putting it verbatim in a Pod definition or a container image.
+
+**Key Features:**
+- Secrets are base64-encoded and stored in etcd (the Kubernetes backing store).
+- Secrets can be mounted as files or exposed as environment variables.
+- Access to Secrets can be controlled via RBAC.
+
+---
+
+## Files in This Example
+
+- `secret.yaml`: Defines a Secret containing an API key.
+- `pod.yaml`: Defines a Pod that consumes the Secret as both an environment variable and a mounted volume.
+
+---
+
+## How to Create and Use a Secret
+
+### 1. Create the Secret
+
+The `secret.yaml` file contains:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: map-key-secret
+type: Opaque
+data:
+  API_KEY: MTIzNDU2
 ```
-configmap/
-  simple-nginx-pod.yaml
-  test-config-map.yaml
-secrets/
-README.md
+
+- The `data` field must contain base64-encoded values.
+- For example, to encode `123456`:
+  ```sh
+  echo -n "123456" | base64
+  # Output: MTIzNDU2
+  ```
+
+Apply the secret:
+```sh
+kubectl apply -f secret.yaml
 ```
 
-## What is a ConfigMap?
+---
 
-A **ConfigMap** is a Kubernetes object used to store non-confidential configuration data in key-value pairs. ConfigMaps allow you to decouple configuration artifacts from image content to keep containerized applications portable.
+### 2. Use the Secret in a Pod
 
-## Types of ConfigMap Usage
+The `pod.yaml` file demonstrates two ways to use the Secret:
 
-### 1. Environment Variable-based ConfigMap
+#### a. As an Environment Variable
 
-You can inject ConfigMap values as environment variables into your containers. This allows your application to access configuration via environment variables.
-
-**Example:**
 ```yaml
 env:
-- name: DB_PORT
+- name: API_KEY
   valueFrom:
-    configMapKeyRef:
-      name: test-config-map
-      key: db-port
+    secretKeyRef:
+      name: map-key-secret
+      key: API_KEY
 ```
-This will set the `DB_PORT` environment variable in the container to the value of `db-port` from the ConfigMap named `test-config-map`.
+- This sets the `API_KEY` environment variable in the container to the decoded value from the Secret.
 
-### 2. Volume-based ConfigMap
+#### b. As a Mounted Volume
 
-You can mount a ConfigMap as a file inside your container. Each key in the ConfigMap becomes a file in the specified directory, and the value of the key is the content of the file.
-
-**Example:**
 ```yaml
+volumeMounts:
+  - name: secret-volume
+    mountPath: /etc/secret-volume
+    readOnly: true
 volumes:
-  - name: db-connection
-    configMap:
-      name: test-config-map
-containers:
-  - name: nginx
-    ...
-    volumeMounts:
-      - name: db-connection
-        mountPath: /opt
+  - name: secret-volume
+    secret:
+      secretName: map-key-secret
 ```
-This will mount the ConfigMap as files under `/opt` in the container.
+- This mounts the Secret as a file at `/etc/secret-volume/API_KEY` inside the container.
 
-## How to Run
+Apply the pod:
+```sh
+kubectl apply -f pod.yaml
+```
 
-1. **Apply the ConfigMap:**
+---
 
+## Verifying the Secret in the Pod
+
+1. **Check the environment variable:**
    ```sh
-   kubectl apply -f configmap/test-config-map.yaml
+   kubectl exec -it nginx -- printenv | grep API_KEY
    ```
+   Output should show: `API_KEY=123456`
 
-2. **Apply the Pod:**
-
+2. **Check the mounted file:**
    ```sh
-   kubectl apply -f configmap/simple-nginx-pod.yaml
+   kubectl exec -it nginx -- cat /etc/secret-volume/API_KEY
    ```
+   Output should show: `123456`
 
-3. **Verify the Pod:**
+---
 
-   ```sh
-   kubectl get pods
-   kubectl describe pod nginx
-   ```
+## Interview Tips
 
-4. **Check Mounted ConfigMap in Pod:**
+- **Why use Secrets?**  
+  To avoid hardcoding sensitive data in pod specs or images and to control access to sensitive information.
+- **How are Secrets different from ConfigMaps?**  
+  Secrets are intended for sensitive data and are base64-encoded; ConfigMaps are for non-sensitive config.
+- **How can you consume a Secret in a pod?**  
+  As environment variables or as files via volumes.
+- **Are Secrets encrypted at rest?**  
+  By default, they are only base64-encoded. Encryption at rest requires additional configuration in Kubernetes.
+- **How do you update a Secret?**  
+  Use `kubectl apply` or `kubectl edit secret <name>`. Pods consuming the Secret as env vars need to be restarted to pick up changes; mounted secrets update automatically (with a short delay).
 
-   ```sh
-   kubectl exec -it nginx -- ls /opt
-   kubectl exec -it nginx -- cat /opt/db-port
-   ```
-
-## Notes
-
-- If you use the environment variable method, changes to the ConfigMap will **not** be reflected in running pods. You must restart the pod to pick up changes.
-- If you use the volume method, updates to the ConfigMap are automatically updated in the mounted files (with some delay).
+---
 
 ## References
 
-- [Kubernetes ConfigMap Documentation](https://kubernetes.io/docs/concepts/configuration/configmap/)
+- [Kubernetes Secrets Documentation](https://kubernetes.io/docs/concepts/configuration/secret/)
